@@ -79,7 +79,7 @@ const Camera = forwardRef<CameraHandle>((props, ref) => {
 
       {error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 z-10 p-6 text-center">
-          <AlertCircle size={48} className="text-eyefi-alert mb-4" />
+          <AlertCircle size={48} className="text-vision-alert mb-4" />
           <p className="text-white font-medium mb-2">Camera Error</p>
           <p className="text-gray-400 text-sm">{error}</p>
         </div>

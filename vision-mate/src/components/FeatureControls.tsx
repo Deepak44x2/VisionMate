@@ -20,7 +20,6 @@ const FeatureControls: React.FC<Props> = ({ currentMode, onModeChange, onAnalyze
 
   return (
     <div className="w-full flex flex-col gap-4 p-4 bg-black">
-      {/* Scrollable Mode Selector */}
       <div className="flex overflow-x-auto gap-3 pb-2" style={{ scrollbarWidth: 'none' }}>
         {modes.map((mode) => {
           const Icon = mode.icon;
@@ -30,7 +29,7 @@ const FeatureControls: React.FC<Props> = ({ currentMode, onModeChange, onAnalyze
               key={mode.id}
               onClick={() => onModeChange(mode.id)}
               className={`flex flex-col items-center justify-center min-w-[85px] h-24 rounded-2xl transition-colors ${
-                isActive ? 'bg-eyefi-primary text-black' : 'bg-gray-800 text-white'
+                isActive ? 'bg-vision-primary text-black' : 'bg-gray-800 text-white'
               }`}
             >
               <Icon size={32} className="mb-2" />
@@ -45,7 +44,7 @@ const FeatureControls: React.FC<Props> = ({ currentMode, onModeChange, onAnalyze
         onClick={onAnalyze}
         disabled={isProcessing}
         className={`w-full py-6 rounded-3xl text-2xl font-bold transition-all ${
-          isProcessing ? 'bg-gray-600 text-gray-400' : 'bg-eyefi-primary text-black active:scale-95'
+          isProcessing ? 'bg-gray-600 text-gray-400' : 'bg-vision-primary text-black active:scale-95'
         }`}
       >
         {isProcessing ? 'Analyzing...' : 'Analyze'}

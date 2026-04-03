@@ -35,10 +35,10 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-eyefi-bg overflow-hidden">
+    <div className="h-screen w-screen flex flex-col bg-vision-bg overflow-hidden">
       {/* Header */}
       <header className="p-6 pb-4 z-10 bg-gradient-to-b from-black to-transparent absolute top-0 left-0 right-0">
-        <h1 className="text-eyefi-primary font-bold text-3xl tracking-tight drop-shadow-md">Vision Mate</h1>
+        <h1 className="text-vision-primary font-bold text-3xl tracking-tight drop-shadow-md">Vision Mate</h1>
         <p className="text-white text-sm opacity-90 mt-1 drop-shadow-md">Real-time awareness assistant</p>
       </header>
 
