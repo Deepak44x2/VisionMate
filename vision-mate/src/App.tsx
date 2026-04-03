@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
-import Camera, { type CameraHandle } from './components/Camera';
+import Camera, {  type CameraHandle } from './components/Camera';
 import FeatureControls from './components/FeatureControls';
 import { AppMode } from './types';
+import { analyzeImage } from './services/geminiService';
 
 const App: React.FC = () => {
   const [currentMode, setCurrentMode] = useState<AppMode>(AppMode.SCENE);
@@ -10,60 +11,64 @@ const App: React.FC = () => {
   
   const cameraRef = useRef<CameraHandle>(null);
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
     if (isProcessing) return;
     
     setIsProcessing(true);
     setResult("Capturing image...");
 
-    //Capture the image from the camera
-    const imageBase64 = cameraRef.current?.capture();
+    try {
+      const imageBase64 = cameraRef.current?.capture();
 
-    if (!imageBase64) {
-      setResult("Error: Could not capture image from camera.");
+      if (!imageBase64) {
+        setResult("Error: Could not capture image from camera.");
+        setIsProcessing(false);
+        return;
+      }
+
+      setResult("Analyzing with Gemini...");
+      
+      const aiResponse = await analyzeImage(imageBase64, currentMode);
+      
+      setResult(aiResponse);
+
+    } catch (error) {
+      console.error("Analysis failed:", error);
+      setResult("An error occurred during analysis.");
+    } finally {
       setIsProcessing(false);
-      return;
     }
-
-    setResult("Processing image with AI...");
-    
-    setTimeout(() => {
-      console.log("Captured Image Data (First 100 chars):", imageBase64.substring(0, 100) + "...");
-      setResult(`Simulated AI analysis complete for ${currentMode} mode.`);
-      setIsProcessing(false);
-    }, 2000);
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-vision-bg overflow-hidden">
+    <div className="h-screen w-screen flex flex-col bg-eyefi-bg overflow-hidden">
       {/* Header */}
       <header className="p-6 pb-4 z-10 bg-gradient-to-b from-black to-transparent absolute top-0 left-0 right-0">
-        <h1 className="text-vision-primary font-bold text-3xl tracking-tight drop-shadow-md">Vision Mate</h1>
+        <h1 className="text-eyefi-primary font-bold text-3xl tracking-tight drop-shadow-md">Vision Mate</h1>
         <p className="text-white text-sm opacity-90 mt-1 drop-shadow-md">Real-time awareness assistant</p>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 relative flex flex-col">
-        <div className="flex-1 relative">
-          <Camera ref={cameraRef} />
-        </div>
-        
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/90 to-transparent p-6 pt-32 pb-8">
-          <p className="text-white text-xl font-medium bg-black/70 p-4 rounded-xl backdrop-blur-md border border-gray-800 shadow-xl">
-            {result}
-          </p>
-        </div>
-      </main>
+        <main className="flex-1 relative bg-black overflow-hidden">
+          <div className="absolute inset-0">
+            <Camera ref={cameraRef} />
+          </div>
+          
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/90 to-transparent p-6 pt-32 pb-6">
+            <p className="text-white text-lg font-medium bg-black/80 p-4 rounded-xl backdrop-blur-md border border-gray-700 shadow-xl">
+              {result}
+            </p>
+          </div>
+        </main>
 
-      {/* Footer */}
-      <footer className="z-10 bg-black">
-        <FeatureControls 
-          currentMode={currentMode} 
-          onModeChange={setCurrentMode} 
-          onAnalyze={handleAnalyze}
-          isProcessing={isProcessing}
-        />
-      </footer>
+        <footer className="z-20 bg-black border-t border-gray-800 shrink-0">
+          <FeatureControls 
+            currentMode={currentMode} 
+            onModeChange={setCurrentMode} 
+            onAnalyze={handleAnalyze}
+            isProcessing={isProcessing}
+          />
+        </footer>
+      </div>
     </div>
   );
 };
