@@ -1,58 +1,17 @@
-import React, { useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
-import { speak } from '../services/ttsService';
+import React from 'react';
 
-const SOSButton: React.FC = () => {
-  const [isLocating, setIsLocating] = useState(false);
+interface SOSButtonProps {
+  onTrigger: () => void;
+}
 
-  const handleSOS = () => {
-    if ('vibrate' in navigator) {
-      navigator.vibrate([200, 100, 200, 100, 500]);
-    }
-
-    speak("Activating emergency SOS. Locating you now.");
-    setIsLocating(true);
-
-    if (!navigator.geolocation) {
-      speak("GPS is not supported on this device.");
-      setIsLocating(false);
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-
-        const mapsLink = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
-
-        const message = `EMERGENCY: I am visually impaired and need assistance. Here is my exact location: ${mapsLink}`;
-
-        const encodedMessage = encodeURIComponent(message);
-
-        window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
-
-        speak("Location found. Opening WhatsApp.");
-        setIsLocating(false);
-      },
-      (error) => {
-        console.error("Geolocation error:", error);
-        speak("Failed to get your location. Please check GPS permissions.");
-        setIsLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-  };
-
+const SOSButton: React.FC<SOSButtonProps> = ({ onTrigger }) => {
   return (
     <button
-      onClick={handleSOS}
-      disabled={isLocating}
-      className={`absolute top-6 right-6 z-50 p-4 rounded-full shadow-lg transition-transform active:scale-90 flex items-center justify-center ${
-        isLocating ? 'bg-gray-600 animate-pulse' : 'bg-eyefi-alert hover:bg-red-600'
-      }`}
-      aria-label="Emergency SOS"
+      onClick={onTrigger}
+      aria-label="SOS Emergency Button"
+      className="absolute top-4 right-4 z-20 bg-vision-alert text-white font-black text-xl w-20 h-20 rounded-full border-4 border-white shadow-2xl flex items-center justify-center active:bg-red-800 active:scale-95 transition-all"
     >
-      <AlertTriangle size={28} className="text-white" />
+      SOS
     </button>
   );
 };
