@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import Camera, { CameraHandle } from './components/Camera';
+import Camera, {type CameraHandle } from './components/Camera';
 import FeatureControls from './components/FeatureControls';
 import { AppMode } from './types';
 import { analyzeImage } from './services/geminiService';
