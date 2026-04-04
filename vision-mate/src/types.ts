@@ -6,6 +6,7 @@ export const AppMode = {
   COLOR: 'COLOR',
   OBJECT: 'OBJECT',
   FACE: 'FACE',
+  CALCULATOR: 'CALCULATOR',
   SOS: 'SOS',
 } as const;
 
@@ -19,6 +20,7 @@ export type VoiceAction =
   | 'COLOR'
   | 'OBJECT'
   | 'FACE'
+  | 'CALCULATOR'
   | 'SCAN'
   | 'STOP'
   | 'HELP'
