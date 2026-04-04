@@ -1,37 +1,43 @@
-// src/services/ttsService.ts
+let currentLanguage = 'en-US';
 
-export const speak = (text: string) => {
-  // Check if the browser supports speech synthesis
-  if (!('speechSynthesis' in window)) {
-    console.error("Text-to-Speech is not supported in this browser.");
-    return;
+export const setTtsLanguage = (lang: string) => {
+  currentLanguage = lang;
+};
+
+export const speakText = (text: string, force: boolean = false) => {
+  if (!window.speechSynthesis) return;
+
+  // Cancel current speech if forced or if piling up
+  if (force || window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
   }
 
-  window.speechSynthesis.cancel();
-
   const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 1.0; 
+  utterance.pitch = 1.0;
+  utterance.lang = currentLanguage;
   
+  // Prefer a clear voice for the selected language
   const voices = window.speechSynthesis.getVoices();
-  const preferredVoice = voices.find(voice => 
-    voice.name.includes('Google US English') || 
-    voice.name.includes('Samantha') || 
-    voice.lang === 'en-US'
-  );
-
+  const preferredVoice = voices.find(v => v.lang.includes(currentLanguage) && v.name.includes('Google')) 
+    || voices.find(v => v.lang.includes(currentLanguage)) 
+    || voices[0];
+    
   if (preferredVoice) {
     utterance.voice = preferredVoice;
   }
 
-  // Set the rate slightly faster than normal (visually impaired users often prefer faster speech)
-  utterance.rate = 1.1;
-  utterance.pitch = 1.0;
-
-  // Speak!
   window.speechSynthesis.speak(utterance);
 };
 
-export const stopSpeaking = () => {
-  if ('speechSynthesis' in window) {
+export const stopSpeech = () => {
+  if (window.speechSynthesis) {
     window.speechSynthesis.cancel();
+  }
+};
+
+export const vibrate = (pattern: number | number[]) => {
+  if (navigator.vibrate) {
+    navigator.vibrate(pattern);
   }
 };

@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import Camera, {  type CameraHandle } from './components/Camera';
+import Camera, { type CameraHandle } from './components/Camera';
 import FeatureControls from './components/FeatureControls';
 import SOSButton from './components/SOSButton';
 import { AppMode } from './types';
 import { analyzeImage } from './services/geminiService';
-import { speak, stopSpeaking } from './services/ttsService';
+
 import { voiceService, type VoiceCommand } from './services/voiceService'; 
 import { Mic, MicOff } from 'lucide-react'; 
 
@@ -16,8 +16,8 @@ const App: React.FC = () => {
   const [manualListening, setManualListening] = useState(false);
   
   const cameraRef = useRef<CameraHandle>(null);
-  
   const currentModeRef = useRef(currentMode);
+
   useEffect(() => {
     currentModeRef.current = currentMode;
   }, [currentMode]);
@@ -25,16 +25,15 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleVoiceCommand = (command: VoiceCommand) => {
       console.log("Executing voice command:", command);
-      setManualListening(false); // Turn off manual listening if a command is heard
+      setManualListening(false);
       
       switch (command.type) {
         case 'SOS':
-          { const sosBtn = document.getElementById('sos-button');
+          const sosBtn = document.getElementById('sos-button');
           if (sosBtn) sosBtn.click();
-          break; }
+          break;
         case 'CHANGE_MODE':
           setCurrentMode(command.mode);
-          speak(`Switched to ${command.mode.toLowerCase()} mode.`);
           setResult(`Mode changed to ${command.mode}. Say 'Scan' to analyze.`);
           break;
         case 'ANALYZE':
@@ -58,7 +57,6 @@ const App: React.FC = () => {
 
   const executeAnalysis = async (modeToUse: AppMode) => {
     if (isProcessing) return;
-    
     stopSpeaking();
     setIsProcessing(true);
     setResult("Capturing image...");
@@ -69,27 +67,24 @@ const App: React.FC = () => {
 
     try {
       const imageBase64 = cameraRef.current?.capture();
-
       if (!imageBase64) {
         const errorMsg = "Error: Could not capture image.";
         setResult(errorMsg);
-        speak(errorMsg);
+        
         setIsProcessing(false);
         return;
       }
 
       setResult("Analyzing with Gemini...");
-      
       const aiResponse = await analyzeImage(imageBase64, modeToUse);
-      
       setResult(aiResponse);
-      speak(aiResponse);
+      
 
     } catch (error) {
       console.error("Analysis failed:", error);
       const errorMsg = "An error occurred during analysis.";
       setResult(errorMsg);
-      speak(errorMsg);
+      
     } finally {
       setIsProcessing(false);
     }
@@ -99,7 +94,6 @@ const App: React.FC = () => {
     executeAnalysis(currentMode);
   };
 
-  // Manual Push-to-Talk handler
   const toggleManualListening = () => {
     if (manualListening) {
       setManualListening(false);
@@ -107,7 +101,6 @@ const App: React.FC = () => {
     } else {
       setManualListening(true);
       setResult("Listening... Say a command like 'Scan' or 'Money mode'.");
-      // Force the wake word to be active immediately so the next thing they say is processed
       (voiceService as any).activateWakeWord(); 
     }
   };
@@ -115,9 +108,9 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-900 flex justify-center items-center">
       <div className="h-[100dvh] w-full max-w-md flex flex-col bg-eyefi-bg relative shadow-2xl overflow-hidden">
-        
+
         <div id="sos-button-container">
-           <SOSButton />
+          <SOSButton />
         </div>
 
         <header className="p-6 pb-4 z-10 bg-gradient-to-b from-black to-transparent absolute top-0 left-0 right-0 pointer-events-none flex justify-between items-start">
@@ -126,7 +119,6 @@ const App: React.FC = () => {
             <p className="text-white text-sm opacity-90 mt-1 drop-shadow-md">Real-time awareness assistant</p>
           </div>
           
-          {/* Push to Talk Button */}
           <button 
             onClick={toggleManualListening}
             className={`mt-2 flex items-center gap-2 px-3 py-2 rounded-full backdrop-blur-md border pointer-events-auto transition-all ${
@@ -146,18 +138,17 @@ const App: React.FC = () => {
 
         <main className="flex-1 relative bg-black overflow-hidden">
           <div className="absolute inset-0">
-            <Camera ref={cameraRef} />
+            <Camera ref={cameraRef} isActive={true} />
           </div>
-          
-          {/* Scanning Animation Overlay */}
+
           {isProcessing && (
             <div className="absolute inset-0 z-10 pointer-events-none flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm">
-              <div className="w-full h-1 bg-eyefi-primary absolute top-0 animate-[scan_2s_ease-in-out_infinite] shadow-[0_0_20px_rgba(255,215,0,0.8)]"></div>
+              <div className="w-full h-1 bg-eyefi-primary absolute top-0 animate-scan shadow-[0_0_20px_rgba(255,215,0,0.8)]"></div>
               <div className="w-16 h-16 border-4 border-eyefi-primary border-t-transparent rounded-full animate-spin"></div>
               <p className="text-eyefi-primary font-bold mt-4 text-lg tracking-widest animate-pulse">ANALYZING...</p>
             </div>
           )}
-          
+
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/90 to-transparent p-6 pt-32 pb-6 z-20">
             <p className="text-white text-lg font-medium bg-black/80 p-4 rounded-xl backdrop-blur-md border border-gray-700 shadow-xl transition-all">
               {result}
@@ -173,6 +164,7 @@ const App: React.FC = () => {
             isProcessing={isProcessing}
           />
         </footer>
+
       </div>
     </div>
   );

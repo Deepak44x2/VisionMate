@@ -1,66 +1,57 @@
-import { GoogleGenAI } from '@google/genai';
-import { AppMode } from '../types';
+import { AppMode } from "../types";
 
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-
-if (!apiKey) {
-  console.error("CRITICAL ERROR: VITE_GEMINI_API_KEY is missing from .env file.");
-}
-
-const ai = new GoogleGenAI({ apiKey: apiKey || 'MISSING_KEY' });
-
-const PROMPTS: Record<AppMode, string> = {
-  [AppMode.SCENE]: "Describe the scene in this image concisely for a visually impaired person. Focus on the most important objects, people, and layout. Keep it under 3 sentences.",
-  [AppMode.READ]: "Read any text visible in this image. If there is a lot of text, summarize the main points. If there is no text, say 'No text detected'.",
-  [AppMode.FIND]: "List the 3 most prominent objects in this image. Format as a simple comma-separated list.",
-  [AppMode.MONEY]: "Identify any currency (bills or coins) in this image. State the denomination and currency type clearly. If none, say 'No currency detected'.",
-  [AppMode.COLOR]: "What are the dominant colors in this image? Describe them simply (e.g., 'mostly blue with some red')."
-};
-
-export const analyzeImage = async (base64Image: string, mode: AppMode): Promise<string> => {
+export const analyzeImage = async (
+  imageBase64: string,
+  mode: AppMode
+): Promise<string> => {
   try {
-    const base64Data = base64Image.split(',')[1];
+    const API_KEY = "vision-AIzaSyDLSTcsMsS9FhJt4S8MpNgsKXLAF-rM_JY/.env";
 
-    if (!base64Data) {
-      throw new Error("Invalid image data format.");
+    let prompt = "Describe the image clearly.";
+
+    if (mode === AppMode.SCENE) {
+      prompt = "Describe the scene clearly for a visually impaired person.";
+    } else if (mode === AppMode.MONEY) {
+      prompt = "Identify the currency and tell the amount clearly.";
+    } else {
+      // fallback (covers TEXT / OBJECT if not in enum)
+      prompt = "Describe what is visible in the image in simple words.";
     }
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview", 
-      contents: [
-        PROMPTS[mode],
-        {
-          inlineData: {
-            data: base64Data,
-            mimeType: "image/jpeg",
-          },
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      ],
-    });
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: prompt },
+                {
+                  inlineData: {
+                    mimeType: "image/jpeg",
+                    data: imageBase64,
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+      }
+    );
 
-    const text = response.text;
-    
-    if (!text) {
-        return "I couldn't analyze the image clearly. Please try again.";
-    }
+    const data = await response.json();
 
-    return text.trim();
+    return (
+      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+      "No result found"
+    );
 
-  } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    
-    // --- HACKATHON SECRET DEMO FALLBACK ---
-    // If the API fails during the pitch (like the 503 error), we return a fake, 
-    // perfect response so the judges still see the app "working".
-    console.log("⚠️ API Failed or Overloaded. Using Demo Fallback Response.");
-    
-    if (mode === AppMode.SCENE) return "I see a person looking at the camera in a room.";
-    if (mode === AppMode.MONEY) return "This is a twenty dollar bill.";
-    if (mode === AppMode.READ) return "The text appears to be a computer screen with code.";
-    if (mode === AppMode.COLOR) return "The dominant colors are dark grey and white.";
-    if (mode === AppMode.FIND) return "Person, wall, computer.";
-    // --------------------------------------
-
-    return "Sorry, the AI servers are currently overloaded. Please try again in a moment.";
+  } catch (error) {
+    console.error("Gemini Error:", error);
+    return "Error analyzing image";
   }
 };
