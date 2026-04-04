@@ -1,5 +1,3 @@
-// src/types.ts
-
 export const AppMode = {
   SCENE: 'SCENE',
   READ: 'READ',
@@ -8,7 +6,6 @@ export const AppMode = {
   COLOR: 'COLOR',
   OBJECT: 'OBJECT',
   FACE: 'FACE',
-  CALCULATOR: 'CALCULATOR',
   SOS: 'SOS',
 } as const;
 
