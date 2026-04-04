@@ -1,179 +1,256 @@
-import { AppMode } from '../types';
+import type { CommandMapping, VoiceAction } from '../types';
+import { getLastTtsEndAt, isTtsSpeaking } from './ttsService';
 
-const SpeechRecognition =
-  (window as any).SpeechRecognition ||
-  (window as any).webkitSpeechRecognition;
-
-export type VoiceCommand =
-  | { type: 'CHANGE_MODE'; mode: AppMode }
-  | { type: 'ANALYZE' }
-  | { type: 'SOS' }
-  | { type: 'UNKNOWN'; text: string };
+export type VoiceCommandCallback = (command: VoiceAction) => void;
+export type StatusCallback = (isListening: boolean) => void;
+export type TranscriptCallback = (text: string) => void;
 
 export class VoiceService {
-  private recognition: any = null;
-  private isListening: boolean = false;
-  private onCommandCallback: ((command: VoiceCommand) => void) | null = null;
-  private wakeWordActive: boolean = false;
+  recognition: any;
+  isListening: boolean = false;
+  private onCommand: VoiceCommandCallback;
+  private onStatusChange: StatusCallback;
+  private onTranscript?: TranscriptCallback;
+  private restartTimer: any = null;
+  private stoppingIntentionally: boolean = false;
+  private customMappings: CommandMapping[] = [];
+  private networkErrorBackoff: boolean = false;
+  private readonly TTS_ECHO_GUARD_MS = 1200;
+  
+  // Wake Word Configuration
+  private lastWakeTime: number = 0;
+  private readonly WAKE_WINDOW = 8000;
 
-  // ✅ Browser-friendly types
-  private wakeWordTimeout: number | null = null;
-  private restartTimeout: number | null = null;
+  constructor(onCommand: VoiceCommandCallback, onStatusChange: StatusCallback, onTranscript?: TranscriptCallback) {
+    this.onCommand = onCommand;
+    this.onStatusChange = onStatusChange;
+    this.onTranscript = onTranscript;
 
-  constructor() {
-    if (!SpeechRecognition) {
-      console.error('Speech Recognition is not supported in this browser.');
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    
+    if (SpeechRecognition) {
+      this.recognition = new SpeechRecognition();
+      this.recognition.continuous = false;
+      this.recognition.lang = 'en-US';
+      this.recognition.interimResults = false;
+      this.recognition.maxAlternatives = 1;
+
+      this.recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript.toLowerCase();
+        if (isTtsSpeaking() || (Date.now() - getLastTtsEndAt() < this.TTS_ECHO_GUARD_MS)) {
+          return;
+        }
+        console.log("Heard:", transcript);
+        if (this.onTranscript) this.onTranscript(transcript);
+        this.processCommand(transcript);
+        this.networkErrorBackoff = false; 
+      };
+
+      this.recognition.onerror = (event: any) => {
+        if (event.error === 'no-speech' || event.error === 'aborted') return;
+        
+        if (event.error === 'network') {
+          this.networkErrorBackoff = true;
+          return;
+        }
+
+        console.warn("Speech Recognition Error:", event.error);
+      };
+
+      this.recognition.onend = () => {
+        if (this.isListening && !this.stoppingIntentionally) {
+          const delay = this.networkErrorBackoff ? 2000 : 100;
+          
+          this.restartTimer = setTimeout(() => {
+            try {
+              if (this.isListening) {
+                // Check online status before retrying if network failed previously
+                if (this.networkErrorBackoff && !navigator.onLine) {
+                   return; 
+                }
+                this.recognition.start();
+              }
+            } catch (e) {
+              // Ignore
+            }
+          }, delay);
+        } else {
+          this.isListening = false;
+          this.onStatusChange(false);
+        }
+      };
+    } else {
+      console.warn("Speech Recognition API not supported in this browser.");
+    }
+  }
+
+  setLanguage(lang: string) {
+    if (this.recognition) {
+      this.recognition.lang = lang;
+      if (this.isListening) {
+        this.stop();
+        setTimeout(() => this.start(), 100);
+      }
+    }
+  }
+
+  setMappings(mappings: CommandMapping[]) {
+    this.customMappings = mappings;
+  }
+
+  processCommand(text: string) {
+    const lowerText = text.toLowerCase();
+    
+    // Check for Wake Word
+    // Includes variations for accents/misinterpretations and multiple languages
+    const wakeWords = [
+      'hey vision', 'hi vision', 'a vision', 'hey visual', 'vision', 'hey mate', 'wifi', 'hi-fi', 'ok vision', 'okay vision',
+      'hola vision', 'bonjour vision', 'hallo vision', 'ciao vision', 'こんにちは vision', '안녕 vision', '你好 vision', 'नमस्ते vision'
+    ];
+    const hasWakeWord = wakeWords.some(w => lowerText.includes(w));
+
+    if (hasWakeWord) {
+      this.lastWakeTime = Date.now();
+      // Notify App that wake word was detected (to trigger beep/vibe)
+      this.onCommand('WAKE'); 
+    }
+
+    if (!hasWakeWord && (Date.now() - this.lastWakeTime > this.WAKE_WINDOW)) {
       return;
     }
 
-    this.recognition = new SpeechRecognition();
-    this.recognition.continuous = true;
-    this.recognition.interimResults = false;
-    this.recognition.lang = 'en-US';
+    this.lastWakeTime = Date.now();
 
-    this.recognition.onresult = this.handleResult.bind(this);
-
-    this.recognition.onerror = (event: any) => {
-      console.error('Speech Recognition Error:', event.error);
-    };
-
-    this.recognition.onsoundstart = () => {
-      console.log('🎤 Microphone is picking up sound...');
-    };
-
-    this.recognition.onspeechstart = () => {
-      console.log('🗣️ Browser detects human speech...');
-    };
-
-    this.recognition.onend = () => {
-      console.log('Speech recognition ended.');
-      if (this.isListening) {
-        if (this.restartTimeout) clearTimeout(this.restartTimeout);
-        this.restartTimeout = window.setTimeout(() => {
-          console.log('Attempting to restart speech recognition...');
-          try {
-            this.recognition.start();
-          } catch (e) {
-            console.error('Failed to restart recognition:', e);
-          }
-        }, 1000);
+    // Process Commands
+       for (const mapping of this.customMappings) {
+      if (lowerText.includes(mapping.phrase.toLowerCase())) {
+        console.log(`Custom match: "${mapping.phrase}"`);
+        this.onCommand(mapping.action);
+        return;
       }
-    };
+    }
+
+    // High Priority Commands (Stop, SOS, Battery, Help)
+    const stopWords = ['stop', 'quiet', 'silence', 'parar', 'detener', 'silencio', 'cállate', 'arrêter', 'tais-toi', 'halt', 'stopp', 'ruhe', 'fermati', 'basta', '止まれ', '静かに', '멈춰', '조용히', '停止', '安静', 'रुको', 'चुप', 'शांत'];
+    if (stopWords.some(w => lowerText.includes(w))) {
+      this.onCommand('STOP');
+      return;
+    }
+    
+    const sosWords = ['sos', 'help me', 'emergency', 'ayuda', 'emergencia', 'au secours', 'urgence', 'hilfe', 'notfall', 'aiuto', 'emergenza', '助けて', '緊急', '도와줘', '응급', '救命', '紧急', 'बचाओ', 'आपातकालीन'];
+    if (sosWords.some(w => lowerText.includes(w))) {
+      this.onCommand('SOS');
+      return;
+    }
+
+    const batteryWords = ['battery', 'power', 'charge', 'status', 'batería', 'energía', 'carga', 'batterie', 'puissance', 'akku', 'strom', 'batteria', 'carica', 'バッテリー', '電池', '배터리', '전원', '电池', '电量', 'बैटरी', 'चार्ज'];
+    if (batteryWords.some(w => lowerText.includes(w))) {
+      this.onCommand('BATTERY');
+      return;
+    }
+
+    const helpWords = ['help', 'ayuda', 'aide', 'hilfe', 'aiuto', '助け', '도움', '帮助', 'मदद'];
+    if (helpWords.some(w => lowerText.includes(w)) && !sosWords.some(w => lowerText.includes(w))) {
+      this.onCommand('HELP');
+      return;
+    }
+
+    const homeWords = ['home', 'back to home', 'go home', 'main screen', 'dashboard'];
+    if (homeWords.some(w => lowerText.includes(w))) {
+      this.onCommand('HOME');
+      return;
+    }
+
+    const historyWords = ['history', 'open history', 'show history', 'recent activity', 'recent activities'];
+    if (historyWords.some(w => lowerText.includes(w))) {
+      this.onCommand('HISTORY');
+      return;
+    }
+
+    // Determine if the user is asking to scan/analyze right now
+    const scanWords = [
+      'what is', "what's", 'identify', 'scan', 'tell me', 'read this', 'find this', 'detect', 'who is', 'check',
+      'qué es', 'identificar', 'escanear', 'dime', 'lee esto', 'encuentra esto', 'detectar', 'quién es', 'revisar',
+      "qu'est-ce que", 'identifier', 'scanner', 'dis-moi', 'lis ça', 'trouve ça', 'détecter', 'qui est', 'vérifier',
+      'was ist', 'identifizieren', 'scannen', 'sag mir', 'lies das', 'finde das', 'erkennen', 'wer ist', 'prüfen',
+      'cosa è', 'identifica', 'scansiona', 'dimmi', 'leggi questo', 'trova questo', 'rileva', 'chi è', 'controlla',
+      '何', '識別', 'スキャン', '教えて', '読んで', '見つけて', '検出', '誰', '確認',
+      '뭐야', '식별', '스캔', '말해줘', '읽어줘', '찾아줘', '감지', '누구', '확인',
+      '是什么', '识别', '扫描', '告诉我', '读这个', '找到这个', '检测', '是谁', '检查',
+      'क्या है', 'पहचानो', 'स्कैन', 'बताओ', 'पढ़ो', 'ढूंढो', 'पता लगाओ', 'कौन है', 'चेक'
+    ];
+    const wantsScan = scanWords.some(w => lowerText.includes(w));
+
+    let modeChanged = false;
+
+    // Default Commands for Modes
+    const sceneWords = ['scene', 'environment', 'around me', 'describe', 'escena', 'entorno', 'a mi alrededor', 'describir', 'scène', 'environnement', 'autour de moi', 'décrire', 'szene', 'umgebung', 'um mich herum', 'beschreiben', 'scena', 'ambiente', 'intorno a me', 'descrivi', 'シーン', '環境', '周り', '説明して', '장면', '환경', '내 주변', '설명해', '场景', '环境', '周围', '描述', 'दृश्य', 'माहौल', 'मेरे आसपास', 'वर्णन करो'];
+    const readWords = ['read', 'text', 'word', 'document', 'leer', 'texto', 'palabra', 'documento', 'lire', 'texte', 'mot', 'lesen', 'wort', 'dokument', 'leggi', 'testo', 'parola', '読む', 'テキスト', '単語', '文書', '읽기', '텍스트', '단어', '문서', '阅读', '文本', '单词', '文档', 'पढ़ना', 'टेक्स्ट', 'शब्द', 'दस्तावेज़'];
+    const findWords = ['find', 'search', 'locate', 'encontrar', 'buscar', 'localizar', 'trouver', 'chercher', 'localiser', 'finden', 'suchen', 'lokalisieren', 'trova', 'cerca', 'localizza', '見つける', '探す', '配置する', '찾기', '검색', '위치', '寻找', '搜索', '定位', 'ढूंढना', 'खोजना', 'पता लगाना'];
+    const moneyWords = ['money', 'cash', 'dollar', 'currency', 'rupee', 'note', 'coin', 'dinero', 'efectivo', 'dólar', 'moneda', 'billete', 'argent', 'espèces', 'devise', 'pièce', 'geld', 'bargeld', 'währung', 'münze', 'soldi', 'contanti', 'dollaro', 'valuta', 'banconota', 'moneta', 'お金', '現金', 'ドル', '通貨', 'ルピー', '紙幣', '硬貨', '돈', '현금', '달러', '통화', '루피', '지폐', '동전', '钱', '现金', '美元', '货币', '卢比', '纸币', '硬币', 'पैसा', 'नकद', 'डॉलर', 'मुद्रा', 'रुपया', 'नोट', 'सिक्का'];
+    const colorWords = ['color', 'colour', 'kon sa color', 'konsa color', 'couleur', 'farbe', 'colore', '色', '색상', '颜色', 'रंग'];
+    const faceWords = ['face', 'person', 'who is', 'who are', 'cara', 'persona', 'quién es', 'quiénes son', 'visage', 'personne', 'qui est', 'qui sont', 'gesicht', 'person', 'wer ist', 'wer sind', 'viso', 'chi è', 'chi sono', '顔', '人', '誰', '얼굴', '사람', '누구', '脸', '是谁', 'चेहरा', 'व्यक्ति', 'कौन है'];
+    const objectWords = ['object', 'item', 'things', 'objeto', 'artículo', 'cosas', 'objet', 'article', 'choses', 'objekt', 'artikel', 'dinge', 'oggetto', 'articolo', 'cose', 'オブジェクト', 'アイテム', '物', '개체', '항목', '사물', '物体', '物品', '东西', 'वस्तु', 'आइटम', 'चीजें'];
+
+    if (sceneWords.some(w => lowerText.includes(w))) {
+      this.onCommand('SCENE');
+      modeChanged = true;
+    } else if (readWords.some(w => lowerText.includes(w))) {
+      this.onCommand('READ');
+      modeChanged = true;
+    } else if (findWords.some(w => lowerText.includes(w))) {
+      this.onCommand('FIND');
+      modeChanged = true;
+    } else if (moneyWords.some(w => lowerText.includes(w))) {
+      this.onCommand('MONEY');
+      modeChanged = true;
+    } else if (colorWords.some(w => lowerText.includes(w))) {
+      this.onCommand('COLOR');
+      modeChanged = true;
+    } else if (faceWords.some(w => lowerText.includes(w))) {
+      this.onCommand('FACE');
+      modeChanged = true;
+    } else if (objectWords.some(w => lowerText.includes(w))) {
+      this.onCommand('OBJECT');
+      modeChanged = true;
+    }
+    }
+
+    if (modeChanged && wantsScan) {
+      setTimeout(() => this.onCommand('SCAN'), 1500);
+    } else if (!modeChanged && wantsScan) {
+      this.onCommand('SCAN');
+    }
   }
 
-  public startListening(callback: (command: VoiceCommand) => void) {
+  toggle() {
+    if (this.isListening) {
+      this.stop();
+    } else {
+      this.start();
+    }
+  }
+
+  start() {
     if (!this.recognition) return;
-    this.onCommandCallback = callback;
+    this.stoppingIntentionally = false;
     this.isListening = true;
+    this.lastWakeTime = 0; 
+    this.onStatusChange(true);
     try {
       this.recognition.start();
-      console.log("Voice recognition started. Listening for 'Hey Vision'...");
     } catch (e) {
-      console.log('Recognition already started.');
-    }
+]    }
   }
 
-  public stopListening() {
+  stop() {
+    if (!this.recognition) return;
+    this.stoppingIntentionally = true;
     this.isListening = false;
-    if (this.restartTimeout) clearTimeout(this.restartTimeout);
-    if (this.recognition) this.recognition.stop();
-  }
-
-  private handleResult(event: any) {
-    const current = event.resultIndex;
-    const transcript = event.results[current][0].transcript
-      .toLowerCase()
-      .trim();
-
-    console.log('Heard:', transcript);
-
-    // Fuzzy matching for wake word
-    if (
-      transcript.includes('hey vision') ||
-      transcript.includes('hi vision') ||
-      transcript.includes('okay vision') ||
-      transcript.includes('division') ||
-      transcript.includes('a vision') ||
-      transcript.includes('hey listen') ||
-      transcript.includes('revision')
-    ) {
-      this.activateWakeWord();
-      return;
-    }
-
-    if (this.wakeWordActive) {
-      this.processCommand(transcript);
-    }
-  }
-
-  private activateWakeWord() {
-    this.wakeWordActive = true;
-    console.log('Wake word detected! Listening for command...');
-
-    if (this.wakeWordTimeout) clearTimeout(this.wakeWordTimeout);
-
-    this.wakeWordTimeout = window.setTimeout(() => {
-      this.wakeWordActive = false;
-      console.log('Wake word window closed.');
-    }, 8000);
-  }
-
-  private processCommand(transcript: string) {
-    if (!this.onCommandCallback) return;
-
-    let command: VoiceCommand = { type: 'UNKNOWN', text: transcript };
-
-    if (
-      transcript.includes('sos') ||
-      transcript.includes('help me') ||
-      transcript.includes('emergency')
-    ) {
-      command = { type: 'SOS' };
-    } else if (
-      transcript.includes('scan') ||
-      transcript.includes('analyze') ||
-      transcript.includes('what is this') ||
-      transcript.includes('tell me')
-    ) {
-      command = { type: 'ANALYZE' };
-    } else if (
-      transcript.includes('scene') ||
-      transcript.includes('environment') ||
-      transcript.includes('around me')
-    ) {
-      command = { type: 'CHANGE_MODE', mode: AppMode.SCENE };
-    } else if (
-      transcript.includes('read') ||
-      transcript.includes('text') ||
-      transcript.includes('document')
-    ) {
-      command = { type: 'CHANGE_MODE', mode: AppMode.READ };
-    } else if (
-      transcript.includes('find') ||
-      transcript.includes('search') ||
-      transcript.includes('locate')
-    ) {
-      command = { type: 'CHANGE_MODE', mode: AppMode.FIND };
-    } else if (
-      transcript.includes('money') ||
-      transcript.includes('cash') ||
-      transcript.includes('currency') ||
-      transcript.includes('dollar')
-    ) {
-      command = { type: 'CHANGE_MODE', mode: AppMode.MONEY };
-    } else if (
-      transcript.includes('color') ||
-      transcript.includes('colour')
-    ) {
-      command = { type: 'CHANGE_MODE', mode: AppMode.COLOR };
-    }
-
-    if (command.type !== 'UNKNOWN') {
-      this.onCommandCallback(command);
-      this.wakeWordActive = false;
-      if (this.wakeWordTimeout) clearTimeout(this.wakeWordTimeout);
-    }
+    this.onStatusChange(false);
+    if (this.restartTimer) clearTimeout(this.restartTimer);
+    try {
+        this.recognition.stop();
+    } catch(e) { /* ignore */ }
   }
 }
-
-export const voiceService = new VoiceService();
