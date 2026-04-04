@@ -1,8 +1,9 @@
-import React, { useState, useRef } from 'react';
-import Camera, {  type CameraHandle } from './components/Camera';
+import React, { useState, useRef, useEffect } from 'react';
+import Camera, { CameraHandle } from './components/Camera';
 import FeatureControls from './components/FeatureControls';
 import { AppMode } from './types';
 import { analyzeImage } from './services/geminiService';
+import { speak, stopSpeaking } from './services/ttsService'; // Import TTS
 
 const App: React.FC = () => {
   const [currentMode, setCurrentMode] = useState<AppMode>(AppMode.SCENE);
@@ -11,17 +12,32 @@ const App: React.FC = () => {
   
   const cameraRef = useRef<CameraHandle>(null);
 
+  // Stop speaking if the component unmounts
+  useEffect(() => {
+    return () => stopSpeaking();
+  }, []);
+
   const handleAnalyze = async () => {
     if (isProcessing) return;
     
+    // Stop any current speech when starting a new scan
+    stopSpeaking();
+    
     setIsProcessing(true);
     setResult("Capturing image...");
+
+    // Optional: Add a tiny vibration to let the user know the button was pressed
+    if ('vibrate' in navigator) {
+      navigator.vibrate(50);
+    }
 
     try {
       const imageBase64 = cameraRef.current?.capture();
 
       if (!imageBase64) {
-        setResult("Error: Could not capture image from camera.");
+        const errorMsg = "Error: Could not capture image from camera.";
+        setResult(errorMsg);
+        speak(errorMsg);
         setIsProcessing(false);
         return;
       }
@@ -31,22 +47,28 @@ const App: React.FC = () => {
       const aiResponse = await analyzeImage(imageBase64, currentMode);
       
       setResult(aiResponse);
+      
+      // Speak the result out loud!
+      speak(aiResponse);
 
     } catch (error) {
       console.error("Analysis failed:", error);
-      setResult("An error occurred during analysis.");
+      const errorMsg = "An error occurred during analysis.";
+      setResult(errorMsg);
+      speak(errorMsg);
     } finally {
       setIsProcessing(false);
     }
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-eyefi-bg overflow-hidden">
-      {/* Header */}
-      <header className="p-6 pb-4 z-10 bg-gradient-to-b from-black to-transparent absolute top-0 left-0 right-0">
-        <h1 className="text-eyefi-primary font-bold text-3xl tracking-tight drop-shadow-md">Vision Mate</h1>
-        <p className="text-white text-sm opacity-90 mt-1 drop-shadow-md">Real-time awareness assistant</p>
-      </header>
+    <div className="min-h-screen bg-gray-900 flex justify-center items-center">
+      <div className="h-[100dvh] w-full max-w-md flex flex-col bg-eyefi-bg relative shadow-2xl overflow-hidden">
+        
+        <header className="p-6 pb-4 z-10 bg-gradient-to-b from-black to-transparent absolute top-0 left-0 right-0">
+          <h1 className="text-eyefi-primary font-bold text-3xl tracking-tight drop-shadow-md">Vision Mate</h1>
+          <p className="text-white text-sm opacity-90 mt-1 drop-shadow-md">Real-time awareness assistant</p>
+        </header>
 
         <main className="flex-1 relative bg-black overflow-hidden">
           <div className="absolute inset-0">
