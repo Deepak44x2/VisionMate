@@ -55,11 +55,9 @@ const Calculator: React.FC<CalculatorProps> = ({ transcript }) => {
           if (!isNaN(result) && isFinite(result)) {
             const resultStr = String(result);
 
-            // ✅ Always update UI
             setDisplay(resultStr);
             setEquation(mathStr + ' =');
 
-            // ✅ Speak ONLY if "is" is present
             if (shouldCalculate) {
               vibrate(100);
               speakText(

@@ -1,11 +1,8 @@
 @import "tailwindcss";
-@keyframes scan {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(100vh); }
-}
+
 body {
   background-color: #000000;
-  color: #f1f507;
+  color: #FFD700;
   overflow: hidden;
   touch-action: manipulation;
 }

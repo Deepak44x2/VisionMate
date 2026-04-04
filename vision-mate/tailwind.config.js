@@ -8,9 +8,13 @@ export default {
     extend: {
       colors: {
         'eyefi-bg': '#000000',
-        'eyefi-primary': '#FFD700', // High contrast yellow
+        'eyefi-primary': '#FFD700',
+        'eyefi-secondary': '#FFFFFF',
         'eyefi-alert': '#FF4444',
-      }
+      },
+      fontFamily: {
+        sans: ['Verdana', 'sans-serif'],
+      },
     },
   },
   plugins: [],
