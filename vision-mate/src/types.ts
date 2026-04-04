@@ -22,7 +22,6 @@ export type VoiceAction =
   | 'COLOR'
   | 'OBJECT'
   | 'FACE'
-  | 'CALCULATOR'
   | 'SCAN'
   | 'STOP'
   | 'HELP'
