@@ -16,7 +16,22 @@ const App: React.FC = () => {
   const [manualListening, setManualListening] = useState(false);
   
   const cameraRef = useRef<CameraHandle>(null);
+<<<<<<< HEAD
   const currentModeRef = useRef(currentMode);
+=======
+  
+const [theme, setTheme] = useState("dark");
+
+useEffect(() => {
+  const savedTheme = localStorage.getItem("theme") || "dark";
+  setTheme(savedTheme);
+}, []);
+
+useEffect(() => {
+  document.documentElement.classList.toggle("dark", theme === "dark");
+  localStorage.setItem("theme", theme);
+}, [theme]);
+>>>>>>> 674e5d9 (SOS Button Edit)
 
   useEffect(() => {
     currentModeRef.current = currentMode;
