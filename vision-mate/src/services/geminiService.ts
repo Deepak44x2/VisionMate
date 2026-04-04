@@ -51,7 +51,7 @@ const getPromptForMode = (mode: AppMode, language: SupportedLanguage): string =>
       case AppMode.READ:
         return "Read all visible text in this image clearly. If no text, say 'No text found'. Do not describe the font or background.";
       case AppMode.FIND:
-        return "List the top 3 prominent objects in this image. Format: Object 1, Object 2, Object 3.";
+        return "List the top 4 prominent objects in this image. Format: Object 1, Object 2, Object 3 ,Object 4.";
       case AppMode.OBJECT:
         return "Detect and list all distinct objects visible in this image. Be concise. Example: 'Laptop, Coffee Mug, Chair, Water Bottle'.";
       case AppMode.MONEY:
