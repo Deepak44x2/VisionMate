@@ -17,7 +17,7 @@ const App: React.FC = () => {
   
   const cameraRef = useRef<CameraHandle>(null);
   const currentModeRef = useRef(currentMode);
-  
+
 const [theme, setTheme] = useState("dark");
 
 useEffect(() => {
