@@ -24,10 +24,10 @@ const BatteryIndicator: React.FC = () => {
 
   return (
     <div className="absolute top-4 right-4 z-50 flex items-center gap-2 bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm border border-gray-700">
-      <span className={`text-sm font-bold ${level <= 20 ? 'text-vision-alert' : 'text-white'}`}>
+      <span className={`text-sm font-bold ${level <= 20 ? 'text-eyefi-alert' : 'text-white'}`}>
         {level}%
       </span>
-      {charging && <span className="text-vision-primary text-xs">⚡</span>}
+      {charging && <span className="text-eyefi-primary text-xs">⚡</span>}
     </div>
   );
 };
