@@ -1,7 +1,7 @@
-// src/services/ttsService.ts
+
 
 export const speak = (text: string) => {
-  // Check if the browser supports speech synthesis
+  
   if (!('speechSynthesis' in window)) {
     console.error("Text-to-Speech is not supported in this browser.");
     return;
@@ -22,7 +22,7 @@ export const speak = (text: string) => {
     utterance.voice = preferredVoice;
   }
 
-  // Set the rate slightly faster than normal (visually impaired users often prefer faster speech)
+  
   utterance.rate = 1.1;
   utterance.pitch = 1.0;
 
