@@ -1,12 +1,10 @@
-// src/components/Camera.tsx
+
 
 import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 
 interface CameraProps {
   isActive: boolean;
 }
-
-// ✅ This is a TYPE (not available at runtime)
 export interface CameraHandle {
   capture: () => string | null;
 }
@@ -83,7 +81,7 @@ const Camera = forwardRef<CameraHandle, CameraProps>(({ isActive }, ref) => {
       />
       <canvas ref={canvasRef} className="hidden" />
 
-      <div className="absolute inset-0 border-2 border-vision-primary opacity-30" />
+      <div className="absolute inset-0 border-2 border-eyefi-primary opacity-30" />
     </div>
   );
 });

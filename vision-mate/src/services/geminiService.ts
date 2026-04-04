@@ -2,17 +2,6 @@ import { GoogleGenAI, type Part } from "@google/genai";
 import type { KnownFace } from '../types';
 import { AppMode, SupportedLanguage } from '../types';
 
-export interface LocateResult {
-  found: boolean;
-  confidence: number;
-  x: number;
-  y: number;
-  area: number;
-  guidance: string;
-  rateLimited?: boolean;
-  retryAfterMs?: number;
-  detectedLabel?: string;
-}
 
 // Ensure the key is a string and not null/undefined
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY; 
@@ -134,20 +123,32 @@ export const analyzeImage = async (base64Image: string, mode: AppMode, knownFace
 
     return response.text || "I couldn't understand the image.";
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    
-    // --- HACKATHON SECRET DEMO FALLBACK ---
-    // If the API fails during the pitch (like the 503 error), we return a fake, 
-    // perfect response so the judges still see the app "working".
-    console.log("⚠️ API Failed or Overloaded. Using Demo Fallback Response.");
-    
-    if (mode === AppMode.SCENE) return "I see a person looking at the camera in a room.";
-    if (mode === AppMode.MONEY) return "This is a twenty dollar bill.";
-    if (mode === AppMode.READ) return "The text appears to be a computer screen with code.";
-    if (mode === AppMode.COLOR) return "The dominant colors are dark grey and white.";
-    if (mode === AppMode.FIND) return "Person, wall, computer.";
-    // --------------------------------------
+    console.error("Gemini Analysis Error:", error);
 
-    return "Sorry, the AI servers are currently overloaded. Please try again in a moment.";
+    const msg = error.message || error.toString();
+    
+    if (msg.includes('401') || msg.includes('API key')) {
+      return "Invalid API Key. Please check your settings.";
+    }
+    if (msg.toLowerCase().includes('leaked') || msg.toLowerCase().includes('reported as leaked')) {
+      return "Your Gemini API key was reported as leaked (403 PERMISSION_DENIED). Create a new API key in Google AI Studio and update `VITE_GEMINI_API_KEY`. Note: API keys in a frontend bundle are not secure; move Gemini calls to a backend for long-term fix.";
+    }
+    if (msg.includes('403')) {
+      return "Access denied. API Key may not have permission for this model.";
+    }
+    if (msg.includes('429')) {
+      return "Too many requests. Please try again later.";
+    }
+    if (msg.includes('503') || msg.includes('500')) {
+      return "Service unavailable. Please try again later.";
+    }
+    if (msg.includes('fetch failed') || msg.includes('NetworkError')) {
+      return "Network connection failed. Please check your internet.";
+    }
+    if (msg.includes('Base64') || msg.includes('INVALID_ARGUMENT')) {
+      return "Image data was invalid. Let the camera preview load, then capture again.";
+    }
+
+    return "An error occurred during analysis. Please try again.";
   }
 };

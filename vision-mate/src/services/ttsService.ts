@@ -1,6 +1,4 @@
 let currentLanguage = 'en-US';
-let ttsSpeaking = false;
-let lastTtsEndAt = 0;
 
 export const setTtsLanguage = (lang: string) => {
   currentLanguage = lang;
@@ -12,8 +10,6 @@ export const speakText = (text: string, force: boolean = false) => {
   // Cancel current speech if forced or if piling up
   if (force || window.speechSynthesis.speaking) {
     window.speechSynthesis.cancel();
-    ttsSpeaking = false;
-    lastTtsEndAt = Date.now();
   }
 
   const utterance = new SpeechSynthesisUtterance(text);
@@ -31,26 +27,12 @@ export const speakText = (text: string, force: boolean = false) => {
     utterance.voice = preferredVoice;
   }
 
-  utterance.onstart = () => {
-    ttsSpeaking = true;
-  };
-  utterance.onend = () => {
-    ttsSpeaking = false;
-    lastTtsEndAt = Date.now();
-  };
-  utterance.onerror = () => {
-    ttsSpeaking = false;
-    lastTtsEndAt = Date.now();
-  };
-
   window.speechSynthesis.speak(utterance);
 };
 
 export const stopSpeech = () => {
   if (window.speechSynthesis) {
     window.speechSynthesis.cancel();
-    ttsSpeaking = false;
-    lastTtsEndAt = Date.now();
   }
 };
 
@@ -59,6 +41,3 @@ export const vibrate = (pattern: number | number[]) => {
     navigator.vibrate(pattern);
   }
 };
-
-export const isTtsSpeaking = () => ttsSpeaking || (window.speechSynthesis?.speaking ?? false);
-export const getLastTtsEndAt = () => lastTtsEndAt;
