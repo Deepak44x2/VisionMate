@@ -1,13 +1,12 @@
 import { GoogleGenAI } from '@google/genai';
 import { AppMode } from '../types';
 
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
-if (!apiKey) {
+if (!import.meta.env.VITE_GEMINI_API_KEY) {
   console.error("CRITICAL ERROR: VITE_GEMINI_API_KEY is missing from .env file.");
 }
 
-const ai = new GoogleGenAI({ apiKey: apiKey || 'MISSING_KEY' });
+const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || 'MISSING_KEY' });
 
 const PROMPTS: Record<AppMode, string> = {
   [AppMode.SCENE]: "Describe the scene in this image concisely for a visually impaired person. Focus on the most important objects, people, and layout. Keep it under 3 sentences.",
