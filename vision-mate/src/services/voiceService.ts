@@ -1,4 +1,5 @@
 import type { CommandMapping, VoiceAction } from '../types';
+import { getLastTtsEndAt, isTtsSpeaking } from './ttsService';
 
 export type VoiceCommandCallback = (command: VoiceAction) => void;
 export type StatusCallback = (isListening: boolean) => void;
@@ -14,6 +15,7 @@ export class VoiceService {
   private stoppingIntentionally: boolean = false;
   private customMappings: CommandMapping[] = [];
   private networkErrorBackoff: boolean = false;
+  private readonly TTS_ECHO_GUARD_MS = 1200;
   
   // Wake Word Configuration
   private lastWakeTime: number = 0;
@@ -35,6 +37,10 @@ export class VoiceService {
 
       this.recognition.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript.toLowerCase();
+        // Ignore microphone input while app TTS is playing or right after it ends.
+        if (isTtsSpeaking() || (Date.now() - getLastTtsEndAt() < this.TTS_ECHO_GUARD_MS)) {
+          return;
+        }
         console.log("Heard:", transcript);
         if (this.onTranscript) this.onTranscript(transcript);
         this.processCommand(transcript);
@@ -42,7 +48,7 @@ export class VoiceService {
       };
 
       this.recognition.onerror = (event: any) => {
-        if (event.error === 'no-speech') return;
+        if (event.error === 'no-speech' || event.error === 'aborted') return;
         
         if (event.error === 'network') {
           this.networkErrorBackoff = true;
@@ -150,16 +156,35 @@ export class VoiceService {
       return;
     }
 
-    const helpWords = ['help'];
+    const helpWords = ['help', 'ayuda', 'aide', 'hilfe', 'aiuto', '助け', '도움', '帮助', 'मदद'];
     if (helpWords.some(w => lowerText.includes(w)) && !sosWords.some(w => lowerText.includes(w))) {
       this.onCommand('HELP');
+      return;
+    }
+
+    const homeWords = ['home', 'back to home', 'go home', 'main screen', 'dashboard'];
+    if (homeWords.some(w => lowerText.includes(w))) {
+      this.onCommand('HOME');
+      return;
+    }
+
+    const historyWords = ['history', 'open history', 'show history', 'recent activity', 'recent activities'];
+    if (historyWords.some(w => lowerText.includes(w))) {
+      this.onCommand('HISTORY');
       return;
     }
 
     // Determine if the user is asking to scan/analyze right now
     const scanWords = [
       'what is', "what's", 'identify', 'scan', 'tell me', 'read this', 'find this', 'detect', 'who is', 'check',
-      '
+      'qué es', 'identificar', 'escanear', 'dime', 'lee esto', 'encuentra esto', 'detectar', 'quién es', 'revisar',
+      "qu'est-ce que", 'identifier', 'scanner', 'dis-moi', 'lis ça', 'trouve ça', 'détecter', 'qui est', 'vérifier',
+      'was ist', 'identifizieren', 'scannen', 'sag mir', 'lies das', 'finde das', 'erkennen', 'wer ist', 'prüfen',
+      'cosa è', 'identifica', 'scansiona', 'dimmi', 'leggi questo', 'trova questo', 'rileva', 'chi è', 'controlla',
+      '何', '識別', 'スキャン', '教えて', '読んで', '見つけて', '検出', '誰', '確認',
+      '뭐야', '식별', '스캔', '말해줘', '읽어줘', '찾아줘', '감지', '누구', '확인',
+      '是什么', '识别', '扫描', '告诉我', '读这个', '找到这个', '检测', '是谁', '检查',
+      'क्या है', 'पहचानो', 'स्कैन', 'बताओ', 'पढ़ो', 'ढूंढो', 'पता लगाओ', 'कौन है', 'चेक'
     ];
     const wantsScan = scanWords.some(w => lowerText.includes(w));
 
@@ -173,6 +198,7 @@ export class VoiceService {
     const colorWords = ['color', 'colour', 'kon sa color', 'konsa color', 'couleur', 'farbe', 'colore', '色', '색상', '颜色', 'रंग'];
     const faceWords = ['face', 'person', 'who is', 'who are', 'cara', 'persona', 'quién es', 'quiénes son', 'visage', 'personne', 'qui est', 'qui sont', 'gesicht', 'person', 'wer ist', 'wer sind', 'viso', 'chi è', 'chi sono', '顔', '人', '誰', '얼굴', '사람', '누구', '脸', '是谁', 'चेहरा', 'व्यक्ति', 'कौन है'];
     const objectWords = ['object', 'item', 'things', 'objeto', 'artículo', 'cosas', 'objet', 'article', 'choses', 'objekt', 'artikel', 'dinge', 'oggetto', 'articolo', 'cose', 'オブジェクト', 'アイテム', '物', '개체', '항목', '사물', '物体', '物品', '东西', 'वस्तु', 'आइटम', 'चीजें'];
+    const calculatorWords = ['calculator', 'calculate', 'math', 'calculadora', 'calculatrice', 'taschenrechner', 'calcolatrice', '電卓', '계산기', '计算器', 'कैलकुलेटर'];
 
     if (sceneWords.some(w => lowerText.includes(w))) {
       this.onCommand('SCENE');
@@ -222,12 +248,12 @@ export class VoiceService {
     if (!this.recognition) return;
     this.stoppingIntentionally = false;
     this.isListening = true;
-    this.lastWakeTime = Date.now(); // Give an immediate 8-second window when manually started
+    this.lastWakeTime = 0; // Require wake word to reduce accidental triggers from ambient noise
     this.onStatusChange(true);
     try {
       this.recognition.start();
     } catch (e) {
-      // Ignore already started errors
+      // Ignore start errors (e.g. if already started)
     }
   }
 

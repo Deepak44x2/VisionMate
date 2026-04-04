@@ -2,6 +2,17 @@ import { GoogleGenAI, type Part } from "@google/genai";
 import type { KnownFace } from '../types';
 import { AppMode, SupportedLanguage } from '../types';
 
+export interface LocateResult {
+  found: boolean;
+  confidence: number;
+  x: number;
+  y: number;
+  area: number;
+  guidance: string;
+  rateLimited?: boolean;
+  retryAfterMs?: number;
+  detectedLabel?: string;
+}
 
 // Ensure the key is a string and not null/undefined
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY; 
@@ -69,6 +80,31 @@ const getLanguageName = (lang: SupportedLanguage): string => {
     case SupportedLanguage.ZH: return 'Simplified Chinese';
     case SupportedLanguage.HI: return 'Hindi';
     default: return 'English';
+  }
+};
+
+const parseLocateResult = (raw: string): LocateResult | null => {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  let jsonCandidate = trimmed;
+  const firstBrace = trimmed.indexOf('{');
+  const lastBrace = trimmed.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    jsonCandidate = trimmed.slice(firstBrace, lastBrace + 1);
+  }
+  try {
+    const parsed = JSON.parse(jsonCandidate);
+    return {
+      found: !!parsed.found,
+      confidence: Number(parsed.confidence || 0),
+      x: Math.min(1, Math.max(0, Number(parsed.x || 0.5))),
+      y: Math.min(1, Math.max(0, Number(parsed.y || 0.5))),
+      area: Math.min(1, Math.max(0, Number(parsed.area || 0))),
+      guidance: typeof parsed.guidance === 'string' ? parsed.guidance : '',
+      detectedLabel: typeof parsed.detectedLabel === 'string' ? parsed.detectedLabel : '',
+    };
+  } catch {
+    return null;
   }
 };
 
@@ -150,5 +186,80 @@ export const analyzeImage = async (base64Image: string, mode: AppMode, knownFace
     }
 
     return "An error occurred during analysis. Please try again.";
+  }
+};
+
+export const locateTargetObject = async (
+  base64Image: string,
+  targetObject: string,
+  language: SupportedLanguage = SupportedLanguage.EN
+): Promise<LocateResult | null> => {
+  try {
+    if (!genAI) return null;
+    const cleanBase64 = rawBase64FromImageDataUrl(base64Image);
+    if (!cleanBase64) return null;
+
+    const langName = getLanguageName(language);
+    const prompt = `
+You are an assistive object finder for blind and low-vision users.
+Target object: "${targetObject}".
+Analyze the image and return ONLY valid JSON with this exact schema:
+{
+  "found": boolean,
+  "confidence": number, // 0 to 1
+  "x": number, // 0 (left) to 1 (right), object center horizontal position
+  "y": number, // 0 (top) to 1 (bottom), object center vertical position
+  "area": number, // 0 to 1, approximate object area ratio in the full image
+  "detectedLabel": string, // must be exactly "${targetObject}" only if found=true, else ""
+  "guidance": string // very short natural guidance in ${langName}
+}
+Rules:
+- If the target is not visible, set found=false, confidence<=0.25, area=0, x=0.5, y=0.5.
+- If found=true, detectedLabel must be exactly "${targetObject}".
+- If uncertain but maybe visible, set found=true with confidence 0.3 to 0.59 and estimated x/y.
+- If clearly visible, set found=true and confidence>=0.6.
+- Keep guidance human, simple, and calm for accessibility.
+- Return JSON only, no markdown and no extra text.
+`;
+
+    const response = await genAI.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              mimeType: mimeFromDataUrl(base64Image),
+              data: cleanBase64
+            }
+          },
+          { text: prompt }
+        ]
+      }
+    });
+
+    if (!response.text) return null;
+    return parseLocateResult(response.text);
+  } catch (error) {
+    const msg = String((error as any)?.message || error || '');
+    if (msg.includes('429')) {
+      const sMatch = msg.match(/retry in\s+([0-9.]+)s/i);
+      const msMatch = msg.match(/retry in\s+([0-9.]+)ms/i);
+      const retryAfterMs = sMatch
+        ? Math.max(1000, Math.round(Number(sMatch[1]) * 1000))
+        : msMatch
+          ? Math.max(1000, Math.round(Number(msMatch[1])))
+          : 10000;
+      return {
+        found: false,
+        confidence: 0,
+        x: 0.5,
+        y: 0.5,
+        area: 0,
+        guidance: '',
+        rateLimited: true,
+        retryAfterMs,
+      };
+    }
+    return null;
   }
 };
