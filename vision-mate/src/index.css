@@ -1,10 +1,16 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
+@import "tailwindcss";
+@keyframes scan {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(100vh); }
+}
 body {
   background-color: #000000;
-  color: #FFFFFF;
-  overflow: hidden; 
+  color: #f1f507;
+  overflow: hidden;
   touch-action: manipulation;
+}
+
+::-webkit-scrollbar {
+  width: 0px;
+  background: transparent;
 }

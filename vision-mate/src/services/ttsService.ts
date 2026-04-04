@@ -7,13 +7,10 @@ export const speak = (text: string) => {
     return;
   }
 
-  // Cancel any ongoing speech before starting a new one
   window.speechSynthesis.cancel();
 
   const utterance = new SpeechSynthesisUtterance(text);
   
-  // Optional: Customize the voice
-  // We try to find a clear, natural-sounding English voice
   const voices = window.speechSynthesis.getVoices();
   const preferredVoice = voices.find(voice => 
     voice.name.includes('Google US English') || 
