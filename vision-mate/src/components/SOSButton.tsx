@@ -16,4 +16,4 @@ const SOSButton: React.FC<SOSButtonProps> = ({ onTrigger }) => {
   );
 };
 
-export default SOSButton;
+export default SOSButton; 
