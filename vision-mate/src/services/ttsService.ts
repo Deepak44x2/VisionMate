@@ -1,13 +1,20 @@
-// src/services/ttsService.ts
+let currentLanguage = 'en-US';
+let ttsSpeaking = false;
+let lastTtsEndAt = 0;
 
-export const speak = (text: string) => {
-  // Check if the browser supports speech synthesis
-  if (!('speechSynthesis' in window)) {
-    console.error("Text-to-Speech is not supported in this browser.");
-    return;
+export const setTtsLanguage = (lang: string) => {
+  currentLanguage = lang;
+};
+
+export const speakText = (text: string, force: boolean = false) => {
+  if (!window.speechSynthesis) return;
+
+  // Cancel current speech if forced or if piling up
+  if (force || window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+    ttsSpeaking = false;
+    lastTtsEndAt = Date.now();
   }
-
-  window.speechSynthesis.cancel();
 
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.rate = 1.0; 
@@ -24,17 +31,26 @@ export const speak = (text: string) => {
     utterance.voice = preferredVoice;
   }
 
-  // Set the rate slightly faster than normal (visually impaired users often prefer faster speech)
-  utterance.rate = 1.1;
-  utterance.pitch = 1.0;
+  utterance.onstart = () => {
+    ttsSpeaking = true;
+  };
+  utterance.onend = () => {
+    ttsSpeaking = false;
+    lastTtsEndAt = Date.now();
+  };
+  utterance.onerror = () => {
+    ttsSpeaking = false;
+    lastTtsEndAt = Date.now();
+  };
 
-  // Speak!
   window.speechSynthesis.speak(utterance);
 };
 
 export const stopSpeech = () => {
   if (window.speechSynthesis) {
     window.speechSynthesis.cancel();
+    ttsSpeaking = false;
+    lastTtsEndAt = Date.now();
   }
 };
 
@@ -43,3 +59,6 @@ export const vibrate = (pattern: number | number[]) => {
     navigator.vibrate(pattern);
   }
 };
+
+export const isTtsSpeaking = () => ttsSpeaking || (window.speechSynthesis?.speaking ?? false);
+export const getLastTtsEndAt = () => lastTtsEndAt;
