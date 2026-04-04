@@ -6,11 +6,10 @@ const SOSButton: React.FC = () => {
   const [isLocating, setIsLocating] = useState(false);
 
   const handleSOS = () => {
-    // Vibrate intensely to confirm the button was pressed
     if ('vibrate' in navigator) {
       navigator.vibrate([200, 100, 200, 100, 500]);
     }
-    
+
     speak("Activating emergency SOS. Locating you now.");
     setIsLocating(true);
 
@@ -23,18 +22,15 @@ const SOSButton: React.FC = () => {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
-        const mapsLink = https://www.google.com/maps/search/?api=1&query=${latitude},${longitude};
-        
-        const message = EMERGENCY: I am visually impaired and need assistance. Here is my exact location: ${mapsLink};
-        
-        // Encode the message for a URL
+
+        const mapsLink = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+
+        const message = `EMERGENCY: I am visually impaired and need assistance. Here is my exact location: ${mapsLink}`;
+
         const encodedMessage = encodeURIComponent(message);
-        
-        // Open WhatsApp with the pre-filled message
-        // Note: In a real app, you'd let them configure an emergency contact number.
-        // For the hackathon, we just open the app so they can pick a contact.
-        window.open(https://wa.me/?text=${encodedMessage}, '_blank');
-        
+
+        window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
+
         speak("Location found. Opening WhatsApp.");
         setIsLocating(false);
       },
