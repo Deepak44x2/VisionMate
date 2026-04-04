@@ -16,7 +16,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
   return (
     <div className="h-screen w-screen bg-black flex flex-col items-center justify-center p-6">
-      <h1 className="text-5xl font-bold text-eyefi-primary mb-2">Vision AI</h1>
+      <h1 className="text-5xl font-bold text-eyefi-primary mb-2">Eye-Fi</h1>
       <p className="text-gray-400 mb-8 text-lg">Your AI Vision Assistant</p>
       <form onSubmit={handleSubmit} className="w-full max-w-md flex flex-col gap-4">
         <input

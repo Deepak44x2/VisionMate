@@ -1,7 +1,6 @@
-
-import React, { useState, useRef } from 'react';
+  import React, { useState, useRef } from 'react';
 import { SupportedLanguage, type CommandMapping, type KnownFace } from '../types';
-import { Trash2, Upload } from 'lucide-react';
+  import { Trash2, Upload } from 'lucide-react';
 
   interface VoiceSettingsModalProps {
     isOpen: boolean;
@@ -169,5 +168,3 @@ import { Trash2, Upload } from 'lucide-react';
   };
 
   export default VoiceSettingsModal;
-
-  
