@@ -1,14 +1,25 @@
 import type { CommandMapping, VoiceAction } from '../types';
 import { getLastTtsEndAt, isTtsSpeaking } from './ttsService';
 
-export type VoiceCommandCallback = (command: VoiceAction) => void;
+interface SpeechRecognitionConstructor {
+  new (): SpeechRecognition;
+}
+
+declare global {
+  interface Window {
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+    SpeechRecognition?: SpeechRecognitionConstructor;
+  }
+}
+
+export type VoiceCommand = (command: VoiceAction) => void;
 export type StatusCallback = (isListening: boolean) => void;
 export type TranscriptCallback = (text: string) => void;
 
 export class voiceService {
   recognition: any;
   isListening: boolean = false;
-  private onCommand: VoiceCommandCallback;
+  private onCommand: VoiceCommand;
   private onStatusChange: StatusCallback;
   private onTranscript?: TranscriptCallback;
   private restartTimer: any = null;
@@ -21,12 +32,12 @@ export class voiceService {
   private lastWakeTime: number = 0;
   private readonly WAKE_WINDOW = 8000; // 8 seconds active listening after wake word
 
-  constructor(onCommand: VoiceCommandCallback, onStatusChange: StatusCallback, onTranscript?: TranscriptCallback) {
+  constructor(onCommand: VoiceCommand, onStatusChange: StatusCallback, onTranscript?: TranscriptCallback) {
     this.onCommand = onCommand;
     this.onStatusChange = onStatusChange;
     this.onTranscript = onTranscript;
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     
     if (SpeechRecognition) {
       this.recognition = new SpeechRecognition();
@@ -251,5 +262,10 @@ export class voiceService {
     try {
         this.recognition.stop();
     } catch(e) { /* ignore */ }
+  }
+
+  /** Opens the wake window so the next phrase is processed without saying "Hey Vision" (e.g. manual mic). */
+  activateWakeWord() {
+    this.lastWakeTime = Date.now();
   }
 }

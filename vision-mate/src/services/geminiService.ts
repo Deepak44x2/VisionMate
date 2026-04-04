@@ -83,31 +83,6 @@ const getLanguageName = (lang: SupportedLanguage): string => {
   }
 };
 
-const parseLocateResult = (raw: string): LocateResult | null => {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  let jsonCandidate = trimmed;
-  const firstBrace = trimmed.indexOf('{');
-  const lastBrace = trimmed.lastIndexOf('}');
-  if (firstBrace !== -1 && lastBrace > firstBrace) {
-    jsonCandidate = trimmed.slice(firstBrace, lastBrace + 1);
-  }
-  try {
-    const parsed = JSON.parse(jsonCandidate);
-    return {
-      found: !!parsed.found,
-      confidence: Number(parsed.confidence || 0),
-      x: Math.min(1, Math.max(0, Number(parsed.x || 0.5))),
-      y: Math.min(1, Math.max(0, Number(parsed.y || 0.5))),
-      area: Math.min(1, Math.max(0, Number(parsed.area || 0))),
-      guidance: typeof parsed.guidance === 'string' ? parsed.guidance : '',
-      detectedLabel: typeof parsed.detectedLabel === 'string' ? parsed.detectedLabel : '',
-    };
-  } catch {
-    return null;
-  }
-};
-
 export const analyzeImage = async (base64Image: string, mode: AppMode, knownFaces: KnownFace[] = [], language: SupportedLanguage = SupportedLanguage.EN): Promise<string> => {
   try {
     const prompt = getPromptForMode(mode, language);

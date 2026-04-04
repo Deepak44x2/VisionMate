@@ -2,10 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import Camera, { type CameraHandle } from './components/Camera';
 import FeatureControls from './components/FeatureControls';
 import SOSButton from './components/SOSButton';
-import { AppMode } from './types';
+import { AppMode, type VoiceAction } from './types';
 import { analyzeImage } from './services/geminiService';
 
-import { voiceService, type VoiceCommand } from './services/voiceService'; 
+import { voiceService as VoiceServiceClass } from './services/voiceService';
+import { stopSpeech } from './services/ttsService';
 import { Mic, MicOff } from 'lucide-react'; 
 
 const App: React.FC = () => {
@@ -17,6 +18,7 @@ const App: React.FC = () => {
   
   const cameraRef = useRef<CameraHandle>(null);
   const currentModeRef = useRef(currentMode);
+  const voiceRef = useRef<InstanceType<typeof VoiceServiceClass> | null>(null);
 
 const [theme, setTheme] = useState("dark");
 
@@ -35,41 +37,75 @@ useEffect(() => {
   }, [currentMode]);
 
   useEffect(() => {
-    const handleVoiceCommand = (command: VoiceCommand) => {
-      console.log("Executing voice command:", command);
+    const modeByAction: Partial<Record<VoiceAction, AppMode>> = {
+      SCENE: AppMode.SCENE,
+      READ: AppMode.READ,
+      FIND: AppMode.FIND,
+      MONEY: AppMode.MONEY,
+      COLOR: AppMode.COLOR,
+      OBJECT: AppMode.OBJECT,
+      FACE: AppMode.FACE,
+    };
+
+    const handleVoiceAction = (action: VoiceAction) => {
+      console.log("Executing voice action:", action);
       setManualListening(false);
-      
-      switch (command.type) {
-        case 'SOS':
+
+      const mode = modeByAction[action];
+      if (mode) {
+        setCurrentMode(mode);
+        setResult(`Mode changed to ${mode}. Say 'Scan' to analyze.`);
+        return;
+      }
+
+      switch (action) {
+        case 'WAKE':
+          if ('vibrate' in navigator) navigator.vibrate(30);
+          setResult("Listening... Say Scan or choose a mode.");
+          break;
+        case 'SOS': {
           const sosBtn = document.getElementById('sos-button');
           if (sosBtn) sosBtn.click();
           break;
-        case 'CHANGE_MODE':
-          setCurrentMode(command.mode);
-          setResult(`Mode changed to ${command.mode}. Say 'Scan' to analyze.`);
+        }
+        case 'STOP':
+          stopSpeech();
           break;
-        case 'ANALYZE':
+        case 'SCAN':
           executeAnalysis(currentModeRef.current);
+          break;
+        case 'HELP':
+          setResult("Say 'Hey Vision', then try Scan, a mode like Money or Scene, or SOS.");
+          break;
+        case 'BATTERY':
+        case 'HOME':
+        case 'HISTORY':
+          setResult(`${action}: use on-screen controls when available.`);
+          break;
+        default:
           break;
       }
     };
 
+    const instance = new VoiceServiceClass(handleVoiceAction, setIsListening);
+    voiceRef.current = instance;
+
     try {
-      voiceService.startListening(handleVoiceCommand);
-      setIsListening(true);
+      instance.start();
     } catch (e) {
       console.error("Failed to start voice service:", e);
     }
 
     return () => {
-      stopSpeaking();
-      voiceService.stopListening();
+      stopSpeech();
+      instance.stop();
+      voiceRef.current = null;
     };
   }, []);
 
   const executeAnalysis = async (modeToUse: AppMode) => {
     if (isProcessing) return;
-    stopSpeaking();
+    stopSpeech();
     setIsProcessing(true);
     setResult("Capturing image...");
 
@@ -106,6 +142,13 @@ useEffect(() => {
     executeAnalysis(currentMode);
   };
 
+  const handleSosTrigger = () => {
+    if ('vibrate' in navigator) {
+      navigator.vibrate([200, 100, 200, 100, 200]);
+    }
+    setResult('SOS pressed. If you need emergency services, contact local authorities or emergency number.');
+  };
+
   const toggleManualListening = () => {
     if (manualListening) {
       setManualListening(false);
@@ -113,7 +156,7 @@ useEffect(() => {
     } else {
       setManualListening(true);
       setResult("Listening... Say a command like 'Scan' or 'Money mode'.");
-      (voiceService as any).activateWakeWord(); 
+      voiceRef.current?.activateWakeWord(); 
     }
   };
 
@@ -122,7 +165,7 @@ useEffect(() => {
       <div className="h-[100dvh] w-full max-w-md flex flex-col bg-eyefi-bg relative shadow-2xl overflow-hidden">
 
         <div id="sos-button-container">
-          <SOSButton />
+          <SOSButton onTrigger={handleSosTrigger} />
         </div>
 
         <header className="p-6 pb-4 z-10 bg-gradient-to-b from-black to-transparent absolute top-0 left-0 right-0 pointer-events-none flex justify-between items-start">
@@ -169,11 +212,16 @@ useEffect(() => {
         </main>
 
         <footer className="z-30 bg-black border-t border-gray-800 shrink-0">
-          <FeatureControls 
-            currentMode={currentMode} 
-            onModeChange={setCurrentMode} 
+          <FeatureControls
+            currentMode={currentMode}
             onAnalyze={handleAnalyzeClick}
             isProcessing={isProcessing}
+            isListening={manualListening || isListening}
+            onToggleMic={toggleManualListening}
+            onBack={() => {
+              setCurrentMode(AppMode.SCENE);
+              setResult("Scene mode. Say 'Hey Vision' or tap Analyze.");
+            }}
           />
         </footer>
 
